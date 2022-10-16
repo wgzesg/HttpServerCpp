@@ -5,6 +5,7 @@ g++ src/*.cpp -o server -std=c+=20
 ```
 
 ## Features
+1. Support sending text/html, text/css, text/js, text/plain, image/jpg, image/png
 1. Epolling
 File descriptors for each client connection is set to non-blocking. They are only served when ready
 

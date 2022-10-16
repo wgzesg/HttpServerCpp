@@ -22,7 +22,7 @@ int HttpServer::AddEpollEvent(int new_fd, int flag) {
 }
 
 void HttpServer::Listen(int port, std::string ip_address, int max_buffer) {
-	thread_pool.Init(8, max_buffer);
+	thread_pool.Init(32, max_buffer);
 	this->sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (this->sockfd < 0) {
 		std::cout << "error creating socket" << std::endl;
@@ -32,7 +32,6 @@ void HttpServer::Listen(int port, std::string ip_address, int max_buffer) {
 	my_addr.sin_family = AF_INET;
 	my_addr.sin_port = htons(port);
 	my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	// inet_pton(AF_INET, ip_address.c_str(), &(my_addr.sin_addr.s_addr));
 	bzero(&(my_addr.sin_zero), 8);
 	int ret = bind(this->sockfd, (struct sockaddr *) &my_addr, sizeof(struct sockaddr));
 	if (ret < 0) {

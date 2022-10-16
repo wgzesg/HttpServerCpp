@@ -10,11 +10,13 @@ class StressTester(Thread):
 			resp = requests.get(url=addr)
 
 workers = []
-for x in range(8):
+for x in range(16):
     worker = StressTester()
-    # Setting daemon to True will let the main thread exit even though the workers are blocking
     worker.daemon = True
     workers.append(worker)
     worker.start()
 
+
+for i in workers:
+	i.join()
 

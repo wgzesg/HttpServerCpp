@@ -58,9 +58,8 @@ int main(void)
 
 	my_server.RegisterHandler(MyHttp::RequestType::GET, "/", send_file);
 	my_server.RegisterHandler(MyHttp::RequestType::GET, "/error", send_file);
-	while (1)
-	{
-		my_server.Handle_request();
-	}
+
+	// my_server.Run();
+	my_server.EpRun();
 	my_server.Close();
 }

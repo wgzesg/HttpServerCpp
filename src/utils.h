@@ -1,8 +1,10 @@
-#include "http_ReqRes.h"
-#include <string>
+namespace MyHttp {
 
+// MyHttp::ContentType string2contenttype(std::string s);
+// std::string contenttype2string(MyHttp::ContentType s);
 
-MyHttp::ContentType string2contenttype(std::string s);
-std::string contenttype2string(MyHttp::ContentType s);
+int setNonBlocking(int fd);
+
+}
 
 

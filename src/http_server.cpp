@@ -1,5 +1,5 @@
 #include "http_server.h"
-#include <vector>
+#include "utils.h"
 #include <unordered_map>
 #include <arpa/inet.h>
 
@@ -12,7 +12,18 @@ HttpServer::~HttpServer() {
 	this->Close();
 }
 
-void HttpServer::Init(int port, std::string ip_address) {
+int HttpServer::AddEpollEvent(int new_fd, int flag) {
+	epoll_event ev;
+	ev.events = flag;
+	ev.data.fd = new_fd;
+	if (epoll_ctl(this->ep_instance, EPOLL_CTL_ADD, new_fd, &ev) == -1) {
+		return 1;
+	}
+	return 0;
+}
+
+void HttpServer::Init(int port, std::string ip_address, int max_buffer) {
+	thread_pool = ThreadPool(4, max_buffer);
 	this->sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (this->sockfd < 0) {
 		std::cout << "error creating socket" << std::endl;
@@ -29,7 +40,15 @@ void HttpServer::Init(int port, std::string ip_address) {
 		std::cout << "error binding socket" << std::endl;
 		exit(1);
 	}
-	return;
+
+	// init epoll related components
+	this->events.resize(max_buffer);
+	this->ep_instance = epoll_create(1);
+	if (0 != this->AddEpollEvent(sockfd, EPOLLIN | EPOLLOUT | EPOLLET)) {
+		std::cout << "error initing epoll\n";
+		exit(1);
+	}
+
 }
 
 void HttpServer::Listen() {
@@ -40,7 +59,56 @@ void HttpServer::Listen() {
 	}
 }
 
-void HttpServer::Handle_request(){
+void HttpServer::Run() {
+	while(1) {
+		this->HandleRequest();
+	}
+}
+
+void HttpServer::EpRun() {
+	struct sockaddr_in their_addr;
+	int sin_size = sizeof (struct sockaddr_in);
+	while(1) {
+		int nfds = epoll_wait(ep_instance, events.data(), events.size(), -1);
+		for (int i = 0; i < nfds; i++) {
+			if (events[i].data.fd == sockfd) {
+				// receives new connections
+				int theirfd =accept(sockfd, (struct sockaddr *)&their_addr, (socklen_t *)&sin_size);
+				if (theirfd < 0) {
+					std::cout << "error in accepting connection" << std::endl;
+					return;
+				}
+				std::cout << "got connections!" << std::endl;
+				setNonBlocking(theirfd);
+				std::cout << "opened " << theirfd << '\n';
+				AddEpollEvent(theirfd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP | EPOLLHUP);
+			} else if (events[i].events & EPOLLIN){
+				thread_pool.AppendTask(events[i].data.fd);
+				// std::vector<char> buffer(30000);
+				// std::fill(buffer.begin(), buffer.end(), 0);
+
+				// std::cout << "receiving data\n";
+
+				// read(events[i].data.fd, buffer.data(), 30000);
+				// std::string s(buffer.begin(), buffer.end());
+				// write(events[i].data.fd, s.c_str(), s.length());
+				// close(events[i].data.fd);
+				// epoll_ctl(ep_instance, EPOLL_CTL_DEL,
+				// 	  events[i].data.fd, NULL);
+
+			} else {
+			// } else( events[i].events & ( EPOLLRDHUP | EPOLLHUP | EPOLLERR ) ) {
+				// // std::cout << "clsoing connections\n";
+				// epoll_ctl(ep_instance, EPOLL_CTL_DEL,
+				// 	  events[i].data.fd, NULL);
+				std::cout << "some events not handled\n";
+            }
+		}
+
+	}
+}
+
+void HttpServer::HandleRequest(){
 	struct sockaddr_in their_addr;
 	int sin_size = sizeof (struct sockaddr_in);
 	std::cout << "waiting connections!" << std::endl;
@@ -100,7 +168,6 @@ HttpRequestHandler_t HttpServer::get_handler_func(const HttpRequest& request) {
 	}
 
 	return this->handler_map[request.get_request_path()][request.get_request_type()];
-
 }
 
 void HttpServer::Close() {

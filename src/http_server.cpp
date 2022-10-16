@@ -1,6 +1,5 @@
 #include "http_server.h"
 #include "utils.h"
-#include <unordered_map>
 #include <arpa/inet.h>
 
 namespace MyHttp {
@@ -22,8 +21,8 @@ int HttpServer::AddEpollEvent(int new_fd, int flag) {
 	return 0;
 }
 
-void HttpServer::Init(int port, std::string ip_address, int max_buffer) {
-	thread_pool = ThreadPool(4, max_buffer);
+void HttpServer::Listen(int port, std::string ip_address, int max_buffer) {
+	thread_pool.Init(8, max_buffer);
 	this->sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (this->sockfd < 0) {
 		std::cout << "error creating socket" << std::endl;
@@ -48,24 +47,15 @@ void HttpServer::Init(int port, std::string ip_address, int max_buffer) {
 		std::cout << "error initing epoll\n";
 		exit(1);
 	}
-
-}
-
-void HttpServer::Listen() {
-	int ret = listen(this->sockfd, 10);
+	ret = listen(this->sockfd, 10);
 	if (ret < 0) {
 		std::cout << "failed inited!" << std::endl;
 		exit(1);
 	}
+
 }
 
 void HttpServer::Run() {
-	while(1) {
-		this->HandleRequest();
-	}
-}
-
-void HttpServer::EpRun() {
 	struct sockaddr_in their_addr;
 	int sin_size = sizeof (struct sockaddr_in);
 	while(1) {
@@ -78,96 +68,19 @@ void HttpServer::EpRun() {
 					std::cout << "error in accepting connection" << std::endl;
 					return;
 				}
-				std::cout << "got connections!" << std::endl;
 				setNonBlocking(theirfd);
-				std::cout << "opened " << theirfd << '\n';
 				AddEpollEvent(theirfd, EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP | EPOLLHUP);
 			} else if (events[i].events & EPOLLIN){
 				thread_pool.AppendTask(events[i].data.fd);
-				// std::vector<char> buffer(30000);
-				// std::fill(buffer.begin(), buffer.end(), 0);
-
-				// std::cout << "receiving data\n";
-
-				// read(events[i].data.fd, buffer.data(), 30000);
-				// std::string s(buffer.begin(), buffer.end());
-				// write(events[i].data.fd, s.c_str(), s.length());
 				// close(events[i].data.fd);
-				// epoll_ctl(ep_instance, EPOLL_CTL_DEL,
-				// 	  events[i].data.fd, NULL);
-
-			} else {
-			// } else( events[i].events & ( EPOLLRDHUP | EPOLLHUP | EPOLLERR ) ) {
-				// // std::cout << "clsoing connections\n";
-				// epoll_ctl(ep_instance, EPOLL_CTL_DEL,
-				// 	  events[i].data.fd, NULL);
-				std::cout << "some events not handled\n";
-            }
+			}
 		}
 
 	}
 }
 
-void HttpServer::HandleRequest(){
-	struct sockaddr_in their_addr;
-	int sin_size = sizeof (struct sockaddr_in);
-	std::cout << "waiting connections!" << std::endl;
-	int theirfd =accept(this->sockfd, (struct sockaddr *)&their_addr, (socklen_t *)&sin_size);
-	if (theirfd < 0) {
-		std::cout << "error in accepting connection" << std::endl;
-		return;
-	}
-	std::cout << "got connections!" << std::endl;
-	int id = fork();
-	if (id < 0) {
-		std::cout << "failed to fork out to handle request" << std::endl;
-		close(theirfd);
-		return;
-	}
-
-	if (id == 0) {
-		this->child_handler(theirfd);
-		exit(0);
-	} else {
-		close(theirfd);
-	}
-}
-
 void HttpServer::RegisterHandler(RequestType r_type, std::string path, HttpRequestHandler_t handle_func) {
-	handler_map[path][r_type] = handle_func;
-}
-
-void HttpServer::child_handler(int newfd) {
-	close(this->sockfd);
-	std::vector<char> buffer(30000);
-	std::fill(buffer.begin(), buffer.end(), 0);
-
-	std::cout << "receiving data\n";
-
-	read(newfd, buffer.data(), 30000);
-	std::string s(buffer.begin(), buffer.end());
-
-	auto request = parse(s);
-
-	auto handle_func = this->get_handler_func(request);
-
-	auto resp = handle_func(request);
-
-	std::string string_resp = resp.to_string();
-
-	write(newfd, string_resp.c_str(), string_resp.length());
-	close(newfd);
-
-}
-
-HttpRequestHandler_t HttpServer::get_handler_func(const HttpRequest& request) {
-	// auto func = this->handler_map[request.get_request_path()][request.get_request_type()];
-	if (this->handler_map.find(request.get_request_path()) == this->handler_map.end() 
-		|| this->handler_map[request.get_request_path()].find(request.get_request_type()) == this->handler_map[request.get_request_path()].end()) {
-		return this->handler_map["/error"][RequestType::GET];
-	}
-
-	return this->handler_map[request.get_request_path()][request.get_request_type()];
+	this->thread_pool.RegisterHandler(r_type, path, handle_func);
 }
 
 void HttpServer::Close() {

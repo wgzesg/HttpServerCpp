@@ -47,7 +47,7 @@ HttpRequest parse(std::string s) {
 			request.set_header(key, val);
 			std::cout << key << ": " << res[key] << std::endl;
 		}
-		line_x ++;
+		line_x++;
 		s.erase(0, next_pos + 1);
 	}
 	return request;

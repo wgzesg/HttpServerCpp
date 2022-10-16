@@ -3,7 +3,7 @@ namespace MyHttp {
 
 std::string ContentType2String[7] = {
 	"text/html", "text/plain", "text/css", "text/javascript",
-	"text/png", "text/jpeg", "text/gif"};
+	"image/png", "image/jpeg", "image/gif"};
 
 
 bool hasEnding (std::string const &fullString, std::string const &ending) {
@@ -23,7 +23,7 @@ ContentType get_contentType_from_path(std::string s) {
 		return ContentType::TEXT_CSS;
 	} else 	if (hasEnding(s, ".png")) {
 		return ContentType::IMAGE_PNG;
-	} else 	if (hasEnding(s, ".jpeg")) {
+	} else 	if (hasEnding(s, ".jpeg") || hasEnding(s, ".jpg") || hasEnding(s, ".JPG")) {
 		return ContentType::IMAGE_JPEG;
 	} else 	if (hasEnding(s, ".gif")) {
 		return ContentType::IMAGE_PNG;
